@@ -7,8 +7,8 @@ on:
 
 jobs:
   build-ipa:
-    name: Build iOS IPA (Device Archive)
-    runs-on: macos-14
+    name: Build iOS IPA (Device Release)
+    runs-on: macos-15
 
     steps:
       - name: Checkout repository
@@ -31,25 +31,33 @@ jobs:
           cd ios
           pod install --repo-update
 
-      - name: Build iOS Archive without code signing
+      - name: Build iOS Application for Physical Device
         run: |
           cd ios
           xcodebuild -workspace glaciamobiletest.xcworkspace \
             -scheme glaciamobiletest \
             -configuration Release \
             -destination 'generic/platform=iOS' \
-            -archivePath build/glaciamobiletest.xcarchive \
+            -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
-            clean archive
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            build
 
-      - name: Package .xcarchive into .ipa
+      - name: Package .app into .ipa
         run: |
+          APP_PATH=$(find ios/build/Build/Products/Release-iphoneos -name "*.app" -maxdepth 1 | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: Could not find .app in Release-iphoneos"
+            exit 1
+          fi
+          echo "Found app bundle at $APP_PATH"
           mkdir -p Payload
-          cp -R ios/build/glaciamobiletest.xcarchive/Products/Applications/glaciamobiletest.app Payload/
+          cp -R "$APP_PATH" Payload/
           zip -r glaciamobiletest.ipa Payload
+          ls -lh glaciamobiletest.ipa
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
